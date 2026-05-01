@@ -193,6 +193,7 @@ def pixelate_frame(frame, pixel_size, color_reduction=None, method="fast",
 
 def pixelate_video(input_path, output_path, pixel_size, color_reduction, method,
                    palette_rgb=None, show_grid=False,
+                   export_frames=False, frame_skip=1,
                    progress_callback=None, cancel_flag=None):
     cap = cv2.VideoCapture(input_path)
     if not cap.isOpened():
@@ -202,6 +203,13 @@ def pixelate_video(input_path, output_path, pixel_size, color_reduction, method,
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    # Set up frame export folder
+    frames_dir = None
+    if export_frames:
+        base = os.path.splitext(output_path)[0]
+        frames_dir = base + "_frames"
+        os.makedirs(frames_dir, exist_ok=True)
 
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
@@ -220,22 +228,33 @@ def pixelate_video(input_path, output_path, pixel_size, color_reduction, method,
         pix = cv2.resize(small, (width, height), interpolation=cv2.INTER_NEAREST)
         kmeans_centers, _ = quantize_kmeans(pix, color_reduction)
         kmeans_centers = np.uint8(kmeans_centers)
-        out.write(pixelate_frame(first_frame, pixel_size, color_reduction, method,
-                                 palette_rgb, kmeans_centers, show_grid))
+        result = pixelate_frame(first_frame, pixel_size, color_reduction, method,
+                                palette_rgb, kmeans_centers, show_grid)
+        out.write(result)
+        if frames_dir:
+            cv2.imwrite(os.path.join(frames_dir, "frame_0001.png"), result)
         if progress_callback:
             progress_callback(1, total_frames)
         cap.set(cv2.CAP_PROP_POS_FRAMES, 1)
 
     frame_num = 1 if kmeans_centers is not None else 0
+    exported = 1 if kmeans_centers is not None else 0
     while True:
         if cancel_flag and cancel_flag.is_set():
             break
         ret, frame = cap.read()
         if not ret:
             break
-        out.write(pixelate_frame(frame, pixel_size, color_reduction, method,
-                                 palette_rgb, kmeans_centers, show_grid))
         frame_num += 1
+
+        result = pixelate_frame(frame, pixel_size, color_reduction, method,
+                                palette_rgb, kmeans_centers, show_grid)
+        out.write(result)
+
+        if frames_dir and (frame_num - 1) % frame_skip == 0:
+            exported += 1
+            cv2.imwrite(os.path.join(frames_dir, f"frame_{exported:04d}.png"), result)
+
         if progress_callback and total_frames > 0:
             progress_callback(frame_num, total_frames)
 
@@ -332,7 +351,28 @@ class PixelArtApp:
         self.grid_var = tk.BooleanVar(value=False)
         tk.Checkbutton(self.root, text="Show Pixel Grid", variable=self.grid_var).grid(
             row=row, column=0, columnspan=2, sticky='w', padx=12, pady=4)
-        self._add_tooltip_for_row(row, "Draws grid lines at pixel boundaries — useful as a drawing reference.")
+
+        # ── Video: Export Frames ──
+        row += 1
+        self.video_frame = tk.Frame(self.root)
+        self.video_frame.grid(row=row, column=0, columnspan=4, sticky='ew')
+
+        self.export_frames_var = tk.BooleanVar(value=False)
+        tk.Checkbutton(self.video_frame, text="Export Frames as PNGs",
+                       variable=self.export_frames_var,
+                       command=self._toggle_frame_skip).grid(row=0, column=0, sticky='w', padx=12, pady=2)
+
+        tk.Label(self.video_frame, text="Keep every:").grid(row=1, column=0, sticky='e', padx=12)
+        self.frame_skip_var = tk.IntVar(value=1)
+        self.frame_skip_slider = tk.Scale(self.video_frame, from_=1, to=30, orient=tk.HORIZONTAL,
+                                          variable=self.frame_skip_var, length=200)
+        self.frame_skip_slider.grid(row=1, column=1, sticky='w', padx=4)
+        self.frame_skip_label = tk.Label(self.video_frame, text="frame (1 = all frames)", fg="gray")
+        self.frame_skip_label.grid(row=1, column=2, sticky='w')
+        self.frame_skip_slider.config(command=self._update_skip_label)
+
+        # Start hidden — only show when a video is loaded
+        self.video_frame.grid_remove()
 
         # ── Buttons ──
         row += 1
@@ -382,9 +422,16 @@ class PixelArtApp:
         widget.bind("<Enter>", show)
         widget.bind("<Leave>", hide)
 
-    def _add_tooltip_for_row(self, row, text):
-        # For checkbuttons that span columns — attach tooltip to the root at that row
-        pass  # Tooltips on checkbuttons are tricky; skipping for now
+    def _toggle_frame_skip(self):
+        state = tk.NORMAL if self.export_frames_var.get() else tk.DISABLED
+        self.frame_skip_slider.config(state=state)
+
+    def _update_skip_label(self, val):
+        n = int(val)
+        if n == 1:
+            self.frame_skip_label.config(text="frame (1 = all frames)")
+        else:
+            self.frame_skip_label.config(text=f"frames (keep every {n}th frame)")
 
     # ── Palette Preview Strip ──
 
@@ -476,10 +523,12 @@ class PixelArtApp:
             self.color_reduce_var.set(False)
             self._toggle_color()
             self.method_var.set("fast")
+            self.video_frame.grid()
             self.status_label.config(text="Video detected. Color reduction off by default (slow on video).")
         else:
             self.color_reduce_var.set(True)
             self._toggle_color()
+            self.video_frame.grid_remove()
             self.status_label.config(text="Ready.")
 
     def _browse_output(self):
@@ -535,8 +584,10 @@ class PixelArtApp:
         output_path = self._get_output_path(input_path)
 
         if is_video(input_path):
+            export_frames = self.export_frames_var.get()
+            frame_skip = self.frame_skip_var.get()
             self._process_video(input_path, output_path, pixel_size, color_reduction,
-                                method, palette_rgb, show_grid)
+                                method, palette_rgb, show_grid, export_frames, frame_skip)
         else:
             self._process_image(input_path, output_path, pixel_size, color_reduction,
                                 method, palette_rgb, show_grid)
@@ -558,7 +609,7 @@ class PixelArtApp:
         self._display_image(output_path)
 
     def _process_video(self, input_path, output_path, pixel_size, color_reduction,
-                       method, palette_rgb, show_grid):
+                       method, palette_rgb, show_grid, export_frames, frame_skip):
         self.cancel_flag.clear()
         self.processing = True
         self.btn_generate.config(state=tk.DISABLED)
@@ -575,7 +626,9 @@ class PixelArtApp:
 
         def run():
             success = pixelate_video(input_path, output_path, pixel_size, color_reduction,
-                                     method, palette_rgb, show_grid, on_progress, self.cancel_flag)
+                                     method, palette_rgb, show_grid,
+                                     export_frames, frame_skip,
+                                     on_progress, self.cancel_flag)
             self.processing = False
             self.btn_generate.config(state=tk.NORMAL)
             self.btn_cancel.config(state=tk.DISABLED)
@@ -586,7 +639,11 @@ class PixelArtApp:
                 return
 
             if success:
-                self.status_label.config(text=f"Saved to {output_path}")
+                msg = f"Saved to {output_path}"
+                if export_frames:
+                    frames_dir = os.path.splitext(output_path)[0] + "_frames"
+                    msg += f"  |  Frames exported to {frames_dir}"
+                self.status_label.config(text=msg)
                 cap = cv2.VideoCapture(output_path)
                 ret, frame = cap.read()
                 cap.release()
