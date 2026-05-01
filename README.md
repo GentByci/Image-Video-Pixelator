@@ -32,6 +32,9 @@ python main_pixelator.py
 5. Toggle **Show Pixel Grid** if you want grid lines as a drawing reference
 6. Click **Generate Pixel Art**
 
+<img width="645" height="620" alt="image" src="https://github.com/user-attachments/assets/08b36077-0872-45d5-9d59-64fbf11a13cd" />
+
+
 ## Requirements
 
 - Python 3.8+
