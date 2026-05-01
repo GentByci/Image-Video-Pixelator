@@ -1,4 +1,4 @@
-# Pixel Art Generator
+# Image and Video Pixelator
 
 Convert images and videos into pixel art. Built for artists who want to generate pixel art references from real photos and footage.
 
