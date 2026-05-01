@@ -15,7 +15,7 @@ Convert images and videos into pixel art. Built for artists who want to generate
 ## Quick Start
 
 ### Option 1: Download the exe
-Grab `PixelArtGenerator.exe` from [Releases](../../releases) and run it. No install needed.
+Grab `Pixelator.exe` from [Releases](../../releases) and run it. No install needed.
 
 ### Option 2: Run from source
 ```bash
