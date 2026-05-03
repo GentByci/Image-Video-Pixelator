@@ -34,6 +34,9 @@ python main_pixelator.py
 
 <img width="645" height="620" alt="image" src="https://github.com/user-attachments/assets/08b36077-0872-45d5-9d59-64fbf11a13cd" />
 
+<img width="450" height="450" alt="waves surfing GIF by Evan Hilton_pixel_art_pixel_art" src="https://github.com/user-attachments/assets/fd7dffc7-cffe-461f-a5fb-ce03a87cab85" />
+
+
 
 ## Requirements
 
