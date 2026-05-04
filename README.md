@@ -44,6 +44,12 @@ python main_pixelator.py
 <img width="450" height="450" alt="waves surfing GIF by Evan Hilton_pixel_art" src="https://github.com/user-attachments/assets/96d775d7-71b3-4532-9cf4-033a5b58d036" />
 
 
+### Can be used as a drawing reference for pixel art
+<img width="423" height="480" alt="Animation Fire GIF" src="https://github.com/user-attachments/assets/191d9c28-ec91-404d-ad1b-debcc506ea0c" />
+
+
+<img width="423" height="480" alt="Animation Fire GIF_pixel_art" src="https://github.com/user-attachments/assets/fa6d926a-9506-488e-b383-ed4e86d6ce5c" />
+
 
 ## Requirements
 
